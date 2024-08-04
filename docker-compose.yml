@@ -2,20 +2,20 @@ version: '3.8'
 
 services:
   backend:
-    build: ./backend
+    build: ./driver
     ports:
       - "3000:3000"
     volumes:
-      - ./backend:/usr/src/wardriver
+      - ./driver:/usr/src/wardriver
     stdin_open: true
     tty: true
 
   frontend:
-    build: ./frontend
+    build: ./pages
     ports:
       - "8080:8080"
     volumes:
-      - ./frontend:/usr/src/wardriver
+      - ./pages:/usr/src/wardriver
     depends_on:
       - backend
     deploy:
