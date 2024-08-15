@@ -34,15 +34,24 @@ sub Failure {
 }
 
 sub extract_settings_from_config {
+    my $config_file = "driver/data/config.cfg";
+    print `ls`;
+    open my $fh, '<', $config_file or Die("Could not read config file.");
+    while (my $line = <$fh>) {
+        if ($line =~ /^\[MODE\]/) {
+            return substr($line, 7);
+        }
+    }
+    close $fh;
     # TODO: Parse config file for mode, adapter information? 
 }
 
 # Config
-if (@ARGV != 1) {
-    Die("Usage: justDrive [safe|unsafe]");
-}
-my $mode = $ARGV[0];
-# my $mode = extract_settings_from_config();
+# if (@ARGV != 1) {
+    #    Die("Usage: justDrive [safe|unsafe]");
+    #}
+# my $mode = $ARGV[0];
+my $mode = extract_settings_from_config();
 chomp($mode);
 if ($mode eq '--help' || $mode eq '-h') {
     print <<'END_HELP';
@@ -82,7 +91,7 @@ my $interface = 'wlo1'; # Used for testing without network adapter
 print "Do you want to use a persistent or temporary log? (p/t): ";
 chomp(my $choice = <STDIN>);
 my $tmpLog = "/tmp/justDriveLog.txt";
-my $persLog = "../data/justDriveLog.txt";
+my $persLog = "driver/data/justDriveLog.txt";
 my $output_file;
 if ($choice eq 'p') {
     $output_file = "$persLog";
@@ -91,7 +100,7 @@ if ($choice eq 'p') {
 } else {
     Die("Invalid choice. Enter 'p' for persistent or 't' for temporary.");
 }
-my $cap_dir = "../data/Captures"; 
+my $cap_dir = "driver/data/Captures"; 
 my $scan_interval = $mode eq 'safe' ? 15 : 45;
 my $startFrontend = 0;
 
