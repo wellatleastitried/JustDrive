@@ -35,7 +35,6 @@ sub Failure {
 
 sub extract_settings_from_config {
     my $config_file = "driver/data/config.cfg";
-    print `ls`;
     open my $fh, '<', $config_file or Die("Could not read config file.");
     while (my $line = <$fh>) {
         if ($line =~ /^\[MODE\]/) {
@@ -47,10 +46,6 @@ sub extract_settings_from_config {
 }
 
 # Config
-# if (@ARGV != 1) {
-    #    Die("Usage: justDrive [safe|unsafe]");
-    #}
-# my $mode = $ARGV[0];
 my $mode = extract_settings_from_config();
 chomp($mode);
 if ($mode eq '--help' || $mode eq '-h') {
@@ -86,8 +81,10 @@ if ($mode eq 'unsafe') {
 
 # Teach the user how to pull up help menu while in app
 print "\nWelcome to justDrive. Press '?' to learn the commands of this app.\n\n";
+
 # my $interface = $ENV{'wAdapt'}; # Make sure this environment variable is set on your system! (Or just hardcode it in if you're one of THOSE people)
 my $interface = 'wlo1'; # Used for testing without network adapter
+
 print "Do you want to use a persistent or temporary log? (p/t): ";
 chomp(my $choice = <STDIN>);
 my $tmpLog = "/tmp/justDriveLog.txt";
@@ -141,11 +138,11 @@ sub scan_networks {
 }
 
 # Capture handshake
+# TODO: Get this function working properly
 sub capture_handshake {
     my $ssid = shift;
     my $bssid = shift;
     my $name = shift;
-    # TODO: Make this actually work (Handle output of commands)
     my $capture_file = "$cap_dir/$name.cap";
     # system("airodump-ng --bssid $bssid -c 6 -w $capture_file $interface") == 0 or Die("Failed to start airodump-ng: $!");
     # system("aireplay-ng --deauth 10 -a $bssid $interface") == 0 or Die("Failed to deauthenticate clients: $!");

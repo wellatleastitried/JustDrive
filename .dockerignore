@@ -1,0 +1,8 @@
+./Dockerfile
+./LICENSE
+./run.sh
+./kill.sh
+./.git
+./.gitignore
+./setup.sh
+./driver
