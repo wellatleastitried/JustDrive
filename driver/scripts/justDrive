@@ -7,64 +7,23 @@ use Term::ReadKey;
 use File::Slurp;
 use Term::ANSIColor;
 use IPC::System::Simple qw(system);
+use JSON;
+use HTTP::Tiny;
+
+use lib './driver/scripts';
+use DriveUtils;
 
 ##############################################################################
 
-# WARNING: Do not run in unsafe mode unless you have explicit permission to be
-#          testing the WAPs in the surrounding area!
+# WARNING: Running this project in unsafe mode may be illegal, check your local
+# laws to make sure you are complying. I am not responsible for misuse of this
+# project.
 
 ##############################################################################
-
-
-# Convenience subs
-sub Die {
-    my ($message) = shift;
-    print color('red'), "$message\n", color('reset');
-    exit 1;
-}
-
-sub Notice {
-    my ($message) = shift;
-    print color('yellow'), "$message\n", color('reset');
-}
-
-sub Failure {
-    my ($message) = shift;
-    print color('red'), "$message\n", color('reset');
-}
-
-sub extract_settings_from_config {
-    my $config_file = "driver/data/config.cfg";
-    open my $fh, '<', $config_file or Die("Could not read config file.");
-    while (my $line = <$fh>) {
-        if ($line =~ /^\[MODE\]/) {
-            return substr($line, 7);
-        }
-    }
-    close $fh;
-    # TODO: Parse config file for mode, adapter information? 
-}
 
 # Config
 my $mode = extract_settings_from_config();
 chomp($mode);
-if ($mode eq '--help' || $mode eq '-h') {
-    print <<'END_HELP';
-Usage: justDrive [safe|unsafe]
-
-Arguments:
-
-    safe            ->      Collect basic information from networks in the surrounding area (GPS coordinates, ESSID, BSSID, Password Protected?)
-
-    unsafe          ->      Collects the same data as 'safe' mode but also tries to capture the password hash to store
-
-Options:
-
-    -h, --help      ->      Displays the help menu
-
-END_HELP
-    exit;
-}
 unless ($mode eq 'safe' || $mode eq 'unsafe') {
     Die("Invalid argument : $mode. Expected 'safe' or 'unsafe'.");
 }
@@ -99,142 +58,14 @@ if ($choice eq 'p') {
 }
 my $cap_dir = "driver/data/Captures"; 
 my $scan_interval = $mode eq 'safe' ? 15 : 45;
+
+# TOREM
 my $startFrontend = 0;
 
 # Init GPS
 # Make this a check as to whether the service is even running
 my $gps = Net::GPSD3->new;
 Notice("Warning: Cannot connect to GPSD") unless $gps->poll;
-
-# Get GPS coordinates
-sub get_gps_coords {
-    my $lat;
-    my $lon;
-    my $fix = $gps->poll->fix;
-    unless ($fix) {
-        Notice("Warning: No GPS fix available");
-    } else {
-        $lat = $fix->lat;
-        $lon = $fix->lon;
-    }
-    unless (defined $lat && defined $lon) {
-        Notice("Warning: GPS coordinates not defined");
-    } else {
-        print "GPS: $lat, $lon";
-    }
-    return ($lat, $lon);
-}
-
-# Scan for networks
-sub scan_networks {
-    my $cmd = "iwlist $interface scan";
-    my @list = `$cmd 2>&1`;
-    my $exit_status = $? >> 8;
-    if ($exit_status != 0) {
-        Failure("Failed to scan for networks");
-        undef @list;
-    }
-    return @list;
-}
-
-# Capture handshake
-# TODO: Get this function working properly
-sub capture_handshake {
-    my $ssid = shift;
-    my $bssid = shift;
-    my $name = shift;
-    my $capture_file = "$cap_dir/$name.cap";
-    # system("airodump-ng --bssid $bssid -c 6 -w $capture_file $interface") == 0 or Die("Failed to start airodump-ng: $!");
-    # system("aireplay-ng --deauth 10 -a $bssid $interface") == 0 or Die("Failed to deauthenticate clients: $!");
-    return $capture_file;
-}
-
-# Extract data from output
-sub extract_info {
-    my @data = shift;
-    my @info;
-    my ($bssid, $essid);
-    foreach my $line (@data) {
-        chomp($line);
-        if (!$bssid && $line =~ /Address:\s+([0-9A-Fa-f:]{17})\b/) {
-            $bssid = $1;
-            next;
-        }
-        if (!$essid && $line =~ /^\s*ESSID:"([^"]+)"/) {
-            $essid = $1;
-        }
-        if (defined $bssid && defined $essid) {
-            my $name_for_file = $essid;
-            $name_for_file =~ s/ /_/g;
-            # Check for duplicate ESSID and BSSID
-            if (!is_dupe_ssid($name_for_file, $essid, $bssid, @info)) {
-                my $capture_file;
-                if ($mode eq 'safe') {
-                    $capture_file = "$cap_dir/$name_for_file.cap";
-                } else {
-                    $capture_file = capture_handshake($essid, $bssid, $name_for_file);
-                }
-                push @info, ($essid, $bssid, $capture_file);
-            }
-            undef $bssid;
-            undef $essid;
-        }
-    }
-    return @info;
-}
-
-# Check if duplicate ESSID or BSSID exists in existing records 
-sub is_dupe_ssid {
-    my ($name, $ssid, $mac, @data) = @_;
-    for (my $i = 0; $i < @data; $i += 3) {
-        if ($data[$i] eq $ssid || $data[$i+1] eq $mac) {
-            return 1;
-        }
-    }
-    open my $fh, '<', $output_file or Die("Could not open \"$output_file\": $!");
-    while (my $line = <$fh>) {
-        chomp $line;
-        if (index($line, $ssid) != -1 || index($line, $mac) != -1) {
-            close $fh;
-            return 1;
-        }
-    }
-    close $fh;
-    if (-e "$cap_dir/$name.cap") {
-        return 1;
-    }
-    return 0;
-}
-
-# Log data
-sub log_data {
-    if (@_ == 4) {
-        # [ err, essid, mac, file ]
-        my ($err, $ssid, $mac, $file) = @_;
-        my $log_entry = "[\"$err\", \"$ssid\", \"$mac\", \"$file\"]\n";
-        print "$log_entry";
-        write_file($output_file, {append => 1}, $log_entry);
-    } else {
-        # [ lat, lon, essid, mac, file ]
-        my ($lat, $lon, $ssid, $mac, $file) = @_;
-        my $log_entry = "[\"$lat, $lon\", \"$ssid\", \"$mac\", \"$file\"]\n";
-        write_file($output_file, {append => 1}, $log_entry);
-    }
-}
-
-sub file_has_data {
-    my ($file) = shift;
-    my $check = `stat $file | awk '/Size:/ {print \$2}'`;
-    if ($check <= 0) {
-        return 0;
-    }
-    return 1;
-}
-
-sub spoof_mac_address {
-    # TODO: Implement this
-    print "Generating a spoofed MAC address...";
-}
 
 # Main loop
 unless (-e $output_file) {
@@ -246,11 +77,15 @@ unless (-d $cap_dir) {
         make_path($cap_dir) or Die("Cannot create directory for capture files: $!"); 
     }
 }
+my $old_mac = `ip link show $interface | grep ether | awk '{print $2}'`;
+my $mac_needs_correction = 0;
 if ($mode eq 'safe') {
     print color('green'), "Running in safe mode.\n", color('reset');
 } else {
     print color('red'), "Running in unsafe mode.\n", color('reset');
-    spoof_mac_address();
+    use DriveUtils qw(spoof_mac_address);
+    $old_mac = spoof_mac_address();
+    $mac_needs_correction = 1;
 }
 print color('blue'), "--------------------------------\n", color('reset');
 print color('blue'), "Press SPACE to start scanning...\n", color('reset');
@@ -269,21 +104,21 @@ while (1) {
             }
             print color('blue'), "\nRound: $iter\n", color('reset');
             print "Getting GPS coordinates\n";
-            my ($lat, $lon) = get_gps_coords(); # Change this to calculate the coords of the networks you try to connect to
+            my ($lat, $lon) = get_gps_coords($gps); # Change this to calculate the coords of the networks you try to connect to
             print "Scanning for networks...\n";
-            my @networks = scan_networks();
+            my @networks = scan_networks($interface);
             if (@networks) {
                 print "Extracting info from networks...\n";
-                my @info = extract_info(@networks);
+                my @info = extract_info($mode, $cap_dir, $output_file, @networks);
                 my $net_count = (scalar @info) / 3;
                 print "$net_count new networks found\n";
                 if ($net_count != 0) {
                     print "Logging data from networks...\n";
                     for (my $i = 0; $i < @info; $i += 3) {
                         unless (defined $lat && defined $lon) {
-                            log_data("GPS Unavailable", $info[$i], $info[$i+1], $info[$i+2]);
+                            log_data("GPS Unavailable", $info[$i], $info[$i+1], $info[$i+2], $output_file);
                         } else {
-                            log_data($lat, $lon, $info[$i], $info[$i+1], $info[$i+2]);
+                            log_data($lat, $lon, $info[$i], $info[$i+1], $info[$i+2], $output_file);
                         }
                     }
                 } else {
@@ -366,9 +201,9 @@ while (1) {
         if ($response->{success}) {
             print "Heatmap data has been sent to the web page.";
         } else {
-            Failure("Failed to post data to $endpoint: $response->{status} $response->{reason}");
+            Die("Failed to post data to $endpoint: $response->{status} $response->{reason}");
         }
-        print "To access the heat map visit http://localhost:8080";
+        print "To access the heat map visit http://localhost:8080\n";
     } elsif (defined $key && $key eq '?') {
         print <<'END_SCRIPT_HELP';
 
@@ -386,4 +221,8 @@ END_SCRIPT_HELP
     last if defined $key && $key eq 'q';
 }
 ReadMode 'normal';
+if ($mac_needs_correction) {
+    use DriveUtils qw(fix_mac_address);
+    fix_mac_address($old_mac);
+}
 print "Exiting...\n";
