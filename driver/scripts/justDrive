@@ -10,7 +10,7 @@ use IPC::System::Simple qw(system);
 use JSON;
 use HTTP::Tiny;
 
-use lib './driver/scripts';
+use lib './driver/scripts/';
 use DriveUtils;
 
 ##############################################################################

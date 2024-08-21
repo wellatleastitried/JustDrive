@@ -100,7 +100,6 @@ sub capture_handshake {
 # Extract data from output
 sub extract_info {
     my ($mode, $cap_dir, $output_file, @data) = @_;
-    print "$output_file\n";
     my @info;
     my ($bssid, $essid);
     foreach my $line (@data) {

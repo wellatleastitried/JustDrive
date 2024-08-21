@@ -1,9 +1,11 @@
 #!/bin/bash
 
-echo "Marking runner scripts as executable..."
+echo "Marking scripts with appropriate permissions..."
 chmod +x run.sh
 chmod +x kill.sh
-echo "Scripts have been marked as executable."
+chmod +x driver/scripts/justDrive
+chmod 644 driver/scripts/DriveUtils.pm
+echo "Script permissions have been set."
 
 echo "Setting up javascript config file..."
 read -pr "Enter your Google Maps API key here: " api_key
