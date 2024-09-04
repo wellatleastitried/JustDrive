@@ -1,10 +1,10 @@
-FROM node:latest
+FROM node:18-alpine
 
 RUN npm install -g http-server
 
-WORKDIR /usr/src/wardriver/pages
+WORKDIR /usr/src/app
 
-COPY ./pages /usr/src/wardriver/pages
+COPY ./pages /usr/src/app
 
 EXPOSE 8080
 

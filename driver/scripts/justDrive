@@ -39,7 +39,7 @@ if ($mode eq 'unsafe') {
 }
 
 # Teach the user how to pull up help menu while in app
-print "\nWelcome to justDrive. Press '?' to learn the commands of this app.\n\n";
+print color('yellow'), "\nWelcome to justDrive. Press '?' to learn the commands of this app.\n\n", color('reset');
 
 # my $interface = $ENV{'wAdapt'}; # Make sure this environment variable is set on your system! (Or just hardcode it in if you're one of THOSE people)
 my $interface = 'wlo1'; # Used for testing without network adapter
@@ -58,9 +58,6 @@ if ($choice eq 'p') {
 }
 my $cap_dir = "driver/data/Captures"; 
 my $scan_interval = $mode eq 'safe' ? 15 : 45;
-
-# TOREM
-my $startFrontend = 0;
 
 # Init GPS
 # Make this a check as to whether the service is even running
@@ -130,9 +127,9 @@ while (1) {
             sleep $scan_interval;
             $iter++;
         }
-    } elsif (defined $key && $key eq 'h' && !$startFrontend) {
+    } elsif (defined $key && $key eq 'h') {
         my $url = "http://localhost:8080";
-        my $endpoint = "http://localhost:8080/heatmap-data";
+        my $endpoint = "$url/heatmap-data";
         print "Heat map generation coming soon.\n";
         my $tmpLogExists = -e "$tmpLog" ? 1 : 0;
         my $persLogExists = -e "$persLog" ? 1 : 0;
@@ -143,25 +140,27 @@ while (1) {
             print "Log file found at $persLog\n";
         }
         my @files;
+        my $tempErr = "There is no data in the temporary log. Time to go driving!";
+        my $persErr = "There is no data in the persistent log. Time to go driving!";
         if ($tmpLogExists && $persLogExists) {
             print "Which of the log files would you like to use for the heat map?\n't' for tmp\n'p' for persistent\n'b' for both\nChoose: ";
             chomp(my $choice = <STDIN>);
             if ($choice eq 'b') {
                 unless (file_has_data($tmpLog)) {
-                    Die("There is no data in the temporary log. Time to go driving!");
+                    Die($tempErr);
                 }
                 unless (file_has_data($persLog)) {
-                    Die("There is no data in the persistent log. Time to go driving!");
+                    Die($persErr);
                 }
                 push @files, ("$tmpLog", "$persLog");
             } elsif ($choice eq 'p') {
                 unless (file_has_data($persLog)) {
-                    Die("There is no data in the persistent log. Time to go driving!");
+                    Die($persErr);
                 }
                 push @files, ("$persLog");
             } elsif ($choice eq 't') {
                 unless (file_has_data($tmpLog)) {
-                    Die("There is no data in the temporary log. Time to go driving!");
+                    Die($tempErr);
                 }
                 push @files, ("$tmpLog");
             } else {
@@ -169,12 +168,12 @@ while (1) {
             }
         } elsif ($persLogExists) {
             unless (file_has_data($persLog)) {
-                Die("There is no data in the persistent log. Time to go driving!");
+                Die($persErr);
             }
             push @files, ("$persLog");
         } elsif ($tmpLogExists) {
             unless (file_has_data($tmpLog)) {
-                Die("There is no data in the temporary log. Time to go driving!");
+                Die($tempErr);
             }
             push @files, ("$tmpLog");
         } else {

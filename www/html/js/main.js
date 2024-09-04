@@ -12,8 +12,12 @@ function initMap() {
         center: {lat: 0, lng: 0},
         zoom: 1,
     });
-    fetch('http://localhost:8080/heatmap-data')
-        .then(response => response.json())
+    fetch('http://localhost:8080/heatmap-data', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+    }).then(response => response.json())
         .then(data => {
             const heatmapData = [];
             const markers = [];

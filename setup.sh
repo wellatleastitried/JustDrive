@@ -10,7 +10,7 @@ echo "Script permissions have been set."
 echo "Setting up javascript config file..."
 read -pr "Enter your Google Maps API key here: " api_key
 
-cat <<EOL > pages/js/config.js
+cat <<EOL > www/html/js/config.js
 const CONFIG = {
     GOOGLE_MAPS_API_KEY: '$api_key'
 };
