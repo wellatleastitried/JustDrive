@@ -1,7 +1,7 @@
 #!/bin/bash
 
 echo "Marking scripts with appropriate permissions..."
-chmod +x run.sh
+chmod +x start.sh
 chmod +x kill.sh
 chmod +x driver/scripts/justDrive
 chmod 644 driver/scripts/DriveUtils.pm
