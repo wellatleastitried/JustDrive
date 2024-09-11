@@ -6,6 +6,6 @@ WORKDIR /usr/src/app
 
 COPY ./www/html /usr/src/app
 
-EXPOSE 8080
+EXPOSE 7580
 
-CMD ["http-server", "-p", "8080"]
+CMD ["http-server", "-p", "7580"]

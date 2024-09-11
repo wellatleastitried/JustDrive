@@ -43,6 +43,7 @@ print color('yellow'), "\nWelcome to justDrive. Press '?' to learn the commands 
 
 # my $interface = $ENV{'wAdapt'}; # Make sure this environment variable is set on your system! (Or just hardcode it in if you're one of THOSE people)
 my $interface = 'wlo1'; # Used for testing without network adapter
+Notice("Using interface: $interface");
 
 print "Do you want to use a persistent or temporary log? (p/t): ";
 chomp(my $choice = <STDIN>);
@@ -128,7 +129,7 @@ while (1) {
             $iter++;
         }
     } elsif (defined $key && $key eq 'h') {
-        my $url = "http://localhost:8080";
+        my $url = "http://localhost:7580";
         my $endpoint = "$url/heatmap-data";
         print "Heat map generation coming soon.\n";
         my $tmpLogExists = -e "$tmpLog" ? 1 : 0;
@@ -197,12 +198,13 @@ while (1) {
                 content => $json,
             }
         );
+        print "Content: $response->{content}";
         if ($response->{success}) {
             print "Heatmap data has been sent to the web page.";
         } else {
             Die("Failed to post data to $endpoint: $response->{status} $response->{reason}");
         }
-        print "To access the heat map visit http://localhost:8080\n";
+        print "To access the heat map visit http://localhost:7580\n";
     } elsif (defined $key && $key eq '?') {
         print <<'END_SCRIPT_HELP';
 

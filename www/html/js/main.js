@@ -12,7 +12,7 @@ function initMap() {
         center: {lat: 0, lng: 0},
         zoom: 1,
     });
-    fetch('http://localhost:8080/heatmap-data', {
+    fetch('http://localhost:7580/heatmap-data', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
