@@ -22,11 +22,11 @@ use DriveUtils;
 ##############################################################################
 
 # Config
-my $mode = extract_settings_from_config();
+# my %configs = extract_settings_from_config();
+# my $mode = $configs{'mode'};
+my %SETTINGS = extract_settings_from_config();
+my $mode = $SETTINGS{'MODE'};
 chomp($mode);
-unless ($mode eq 'safe' || $mode eq 'unsafe') {
-    Die("Invalid argument : $mode. Expected 'safe' or 'unsafe'.");
-}
 if ($mode eq 'unsafe') {
     if ($> != 0) {
         Die("This program must be run as root!");
@@ -37,6 +37,8 @@ if ($mode eq 'unsafe') {
         Die("Failed to accept the risks of unsafe mode.");
     }
 }
+
+my $LOGFORMAT = $SETTINGS{'LOG'};
 
 # Teach the user how to pull up help menu while in app
 print color('yellow'), "\nWelcome to justDrive. Press '?' to learn the commands of this app.\n\n", color('reset');
@@ -75,7 +77,7 @@ unless (-d $cap_dir) {
         make_path($cap_dir) or Die("Cannot create directory for capture files: $!"); 
     }
 }
-my $old_mac = `ip link show $interface | grep ether | awk '{print $2}'`;
+my $old_mac = `ip link show $interface | grep ether | awk '{print \$2}'`;
 my $mac_needs_correction = 0;
 if ($mode eq 'safe') {
     print color('green'), "Running in safe mode.\n", color('reset');
@@ -107,20 +109,48 @@ while (1) {
             my @networks = scan_networks($interface);
             if (@networks) {
                 print "Extracting info from networks...\n";
+                # extract_info return data:
+                # hash found? => 0 or 1
+                # essid => string or undef
+                # bssid => string or undef
+                # dump file => string or undef
+                # hash => string or undef
                 my @info = extract_info($mode, $cap_dir, $output_file, @networks);
-                my $net_count = (scalar @info) / 3;
-                print "$net_count new networks found\n";
-                if ($net_count != 0) {
-                    print "Logging data from networks...\n";
-                    for (my $i = 0; $i < @info; $i += 3) {
-                        unless (defined $lat && defined $lon) {
-                            log_data("GPS Unavailable", $info[$i], $info[$i+1], $info[$i+2], $output_file);
-                        } else {
-                            log_data($lat, $lon, $info[$i], $info[$i+1], $info[$i+2], $output_file);
+                if ($mode eq 'safe') {
+                    my $net_count = (scalar @info) / 4;
+                    print "$net_count new networks found\n";
+                    if ($net_count != 0) {
+                        print "Logging data from networks...\n";
+                        for (my $i = 0; $i < @info; $i += 3) {
+                            unless (defined $lat && defined $lon) {
+                                # log_data ( 0 => hash not found, "GPS Unavailable", $info[$i], $info[$i+1], $info[$i+2], $output_file );
+                                log_data("GPS Unavailable", $info[$i], $info[$i+1], $info[$i+2], $info[$i+3], $output_file);
+                            } else {
+                                # log_data ( 0 => hash not found, $lat, $lon, $info[$i], $info[$i+1], $info[$i+2], $output_file );
+                                log_data($lat, $lon, $info[$i], $info[$i+1], $info[$i+2], $info[$i+3], $output_file);
+                            }
                         }
+                    } else {
+                        print "No new data to log.\n";
                     }
                 } else {
-                    print "No new data to log.\n";
+                    my $net_count = (scalar @info) / 4;
+
+                    print "$net_count new networks found\n";
+                    if ($net_count != 0) {
+                        print "Logging data from networks...\n";
+                        for (my $i = 0; $i < @info; $i += 4) {
+                            unless (defined $lat && defined $lon) {
+                                log_data($lat, $lon, $info[$i], $info[$i+1], $info[$i+2], $info[$i+3], $output_file);
+                            } else {
+                                log_data("GPS Unavailable", $info[$i], $info[$i+1], $info[$i+2], $info[$i+3], $output_file);
+                            }
+
+
+                        }
+                    } else {
+                        print "No new data to log.\n";
+                    }
                 }
             } else {
                 Failure("Unable to scan for networks, waiting until next cycle to scan...");

@@ -25,22 +25,55 @@ our @EXPORT = qw(
 our @EXPORT_OK = qw(
     spoof_mac_address
     fix_mac_address
+    parse_dump_file
 );
+
+# Parse captured data from deauth
+sub parse_dump_file {
+    # my $networkName = @_;
+    # my $capFile = "$networkName.pcap";
+    my $captureFile = @_;
+    my @returnData;
+    my $HASHFILE;
+    if (my $match =~ /\/([^\/]+)\.pcap/) {
+        $HASHFILE = $1;
+    }
+
+    open my $fh, '<', $captureFile or return (-1, @returnData);
+    while (my $line = <$fh>) {
+        # Regex to find hash in traffic dump
+        if ($line =~ //) {
+
+            write_file($HASHFILE, $line);
+        }
+    }
+    close $fh;
+
+
+    my $exit_status = `rm $captureFile`;
+    return ($exit_status, @returnData);
+}
 
 # Log data
 sub log_data {
+    # Add functionality to log in wigle csv format so that this information can also be sent to Wigle
+    # Example of Wigle csv format:
+    # [BSSID],[SSID],[Capabilities],[First timestamp seen],[Channel],[Frequency],[RSSI],[Latitude],[Longitude],[Altitude],[Accuracy],[RCOIs],[MfgrId],[Type]
+    # 1a:9f:ee:5c:71:c6,Scampoodle,[WPA2-EAP-CCMP][ESS],2018-08-01 13:08:27,161,5805,-43,37.76578028,-123.45919439,67,3.2160000801086426,5A03BA0000 BAA2D00000 BAA2D02000,,WIFI
+
+    # Change this to determine whether the log data has the hash. Because that will affect the number of arguments
     if (@_ == 5) {
-        # [ err, essid, mac, file ]
+        # [ err, essid, mac, file, programOutputFile ]
         my ($err, $ssid, $mac, $file, $output_file) = @_;
         my $log_entry = "[\"$err\", \"$ssid\", \"$mac\", \"$file\"]\n";
         print "$log_entry";
         write_file($output_file, {append => 1}, $log_entry);
     } else {
-        # [ lat, lon, essid, mac, file ]
+        # [ lat, lon, essid, mac, file, programOutputFile ]
         my ($lat, $lon, $ssid, $mac, $file, $output_file) = @_;
         my $log_entry = "[\"$lat, $lon\", \"$ssid\", \"$mac\", \"$file\"]\n";
         write_file($output_file, {append => 1}, $log_entry);
-    }
+    } 
 }
 
 sub file_has_data {
@@ -91,10 +124,19 @@ sub capture_handshake {
     my $ssid = shift;
     my $bssid = shift;
     my $name = shift;
-    my $capture_file = "$cap_dir/$name.cap";
+    my $capture_file = "$cap_dir/$name.pcap";
+    my $HASH;
+    # Split thread off here
     # system("airodump-ng --bssid $bssid -c 6 -w $capture_file $interface") == 0 or Die("Failed to start airodump-ng: $!");
     # system("aireplay-ng --deauth 10 -a $bssid $interface") == 0 or Die("Failed to deauthenticate clients: $!");
-    return $capture_file;
+    # Direct output to $capture_file
+    my $HASHFILE = parse_dump_file($capture_file);
+    open my $fh, '<', $HASHFILE;
+    while (my $line = <$fh>) {
+        $HASH = $line;
+    }
+    close $fh;
+    return ($capture_file, $HASH);
 }
 
 # Extract data from output
@@ -102,6 +144,7 @@ sub extract_info {
     my ($mode, $cap_dir, $output_file, @data) = @_;
     my @info;
     my ($bssid, $essid);
+    my $HASH;
     foreach my $line (@data) {
         chomp($line);
         if (!$bssid && $line =~ /Address:\s+([0-9A-Fa-f:]{17})\b/) {
@@ -120,9 +163,18 @@ sub extract_info {
                 if ($mode eq 'safe') {
                     $capture_file = "$cap_dir/$name_for_file.cap";
                 } else {
+                    my @capData = capture_handshake($cap_dir, $essid, $bssid, $name_for_file);
+                    $capture_file = $capData[0];
+                    if (scalar @capData == 2) {
+                        $HASH = $capData[1];
+                    }
                     $capture_file = capture_handshake($cap_dir, $essid, $bssid, $name_for_file);
                 }
-                push @info, ($essid, $bssid, $capture_file);
+                if (defined $HASH) {
+                    push @info, ($essid, $bssid, $capture_file, $HASH);
+                } else {
+                    push @info, ($essid, $bssid, $capture_file, "No hash recieved");
+                }
             }
             undef $bssid;
             undef $essid;
@@ -172,15 +224,36 @@ sub Failure {
 }
 
 sub extract_settings_from_config {
+    my %configs;
     my $config_file = "driver/data/config.cfg";
     open my $fh, '<', $config_file or Die("Could not read config file.");
     while (my $line = <$fh>) {
         if ($line =~ /^\[MODE\]/) {
-            return substr($line, 7);
+            my $modeSwitch = substr($line, 7);
+            print $modeSwitch;
+            chomp($modeSwitch);
+            if ($modeSwitch eq "safe" || $modeSwitch eq "unsafe") {
+                $configs{'MODE'} = substr($line, 7);
+            } else {
+                Die("Invalid option in config file for MODE: $modeSwitch. Expected 'safe' or 'unsafe'.");
+            }
+        } elsif ($line =~ /^\[LOG\]/) {
+            my $logSwitch;
+            if (length($line) == 6) {
+                $logSwitch = "file";
+            } else {
+                $logSwitch = substr($line, 6);
+            }
+            chomp($logSwitch);
+            if ($logSwitch eq "wigle" || $logSwitch eq "file") {
+                $configs{'LOG'} = substr($line, 6);
+            } else {
+                Die("Invalid option in config file for LOG: $logSwitch. Expected 'wigle' or 'file',");
+            }
         }
     }
     close $fh;
-    # TODO: Parse config file for mode, adapter information? 
+    return %configs;
 }
 
 
