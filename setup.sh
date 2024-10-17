@@ -12,8 +12,8 @@ if docker images | grep -q justdrive; then
 fi
 
 echo "Marking scripts with appropriate permissions..."
-chmod +x start.sh
-chmod +x kill.sh
+chmod +x ./start
+chmod +x ./kill
 chmod +x driver/scripts/justDrive
 chmod 644 driver/scripts/DriveUtils.pm
 echo "Script permissions have been set."
